@@ -15,8 +15,9 @@ public class HeatPipeNetHandler implements IHeatContainer {
     @Getter
     @Setter
     private long currentThermalEnergy;
+    @Getter
+    @Setter
     private long lastThermalEnergy;
-    private int lastUpdateTick = -1;
 
     public HeatPipeNetHandler(@NotNull HeatPipeBlockEntity pipe, HeatPipeProperties properties) {
         this.pipe = pipe;
@@ -24,14 +25,8 @@ public class HeatPipeNetHandler implements IHeatContainer {
     }
 
     @Override
-    public long acceptHeatFromNetwork(Direction side, long thermalEnergy) {
-        update();
-        return IHeatContainer.super.acceptHeatFromNetwork(side, thermalEnergy);
-    }
-
-    @Override
     public long getBaseTemperature() {
-        return pipe.getEnvironmentalTemperature();
+        return pipe.getEnvironmentalThermia().ambientThermia();
     }
 
     @Override
@@ -89,22 +84,17 @@ public class HeatPipeNetHandler implements IHeatContainer {
         return pipe.isConnected(side);
     }
 
-    @Override
-    public long changeHeat(long thermalEnergy) {
-        update();
-        return IHeatContainer.super.changeHeat(thermalEnergy);
-    }
 
-    private void update() {
-        int tick = pipe.getLevel().getServer().getTickCount();
-        int update = tick - lastUpdateTick;
-        if (update == 0 || update < 0) {
-            lastUpdateTick = tick;
-            return;
-        }
-        lastUpdateTick = tick;
-        lastThermalEnergy = currentThermalEnergy;
-        currentThermalEnergy = pipe.iterateThermalEnergyTowardsEnvironment(currentThermalEnergy, update);
-        //currentThermalEnergy = pipe.loseEnergy(currentThermalEnergy, pipe.getEnvironmentalConductivity() * properties.getConductanceEnvironment(), update);
-    }
+//    private void update() {
+//        int tick = pipe.getLevel().getServer().getTickCount();
+//        int update = tick - lastUpdateTick;
+//        if (update == 0 || update < 0) {
+//            lastUpdateTick = tick;
+//            return;
+//        }
+//        lastUpdateTick = tick;
+//        lastThermalEnergy = currentThermalEnergy;
+//        currentThermalEnergy = pipe.iterateThermalEnergyTowardsEnvironment(currentThermalEnergy, update);
+//        //currentThermalEnergy = pipe.loseEnergy(currentThermalEnergy, pipe.getEnvironmentalConductivity() * properties.getConductanceEnvironment(), update);
+//    }
 }

@@ -15,6 +15,15 @@ public class CosmicLangHandler extends LangHandler {
         replace(provider,"cosmiccore.recipe.temperature", "Temperature:");
         replace(provider,"tooltip.cosmiccore.thermia_hatch_limit", "§cTemp. Limit: %sK");
         provider.add("tagprefix.heat_normal", "%s Thermia Pipe");
+        provider.add("cosmiccore.thermia.currentThermalEnergy", "Thermal Energy: %sK");
+        provider.add("cosmiccore.thermia.maximumThermalEnergy", "Max Thermal Energy: %sK");
+        provider.add("cosmiccore.thermia.minimumThermalEnergy", "Min Thermal Energy: %sK");
+        provider.add("cosmiccore.thermia.overloadThermalEnergy", "Overloads at: %sK");
+        provider.add("cosmiccore.thermia.underloadThermalEnergy", "Underloads at: %sK");
+        provider.add("cosmiccore.thermia.conductanceRate", "Conductance: %s%% / %s%%");
+        provider.add("cosmiccore.thermia.environmentalTemperature", "Environmental Thermia: %sK");
+        provider.add("cosmiccore.thermia.thermalFlow", "Thermal Flow: %smK");
+        provider.add("config.jade.plugin_cosmiccore.heat_info", "[CosmicCore] Heat Info");
 
         // machine tooltips/names/etc
         provider.add("gtceu.naquahine_reactor", "§bNaquahine Reactor");

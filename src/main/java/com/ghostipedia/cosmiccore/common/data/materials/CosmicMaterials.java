@@ -640,6 +640,6 @@ public class CosmicMaterials {
         Chlorine.getProperty(PropertyKey.FLUID).getStorage().enqueueRegistration(FluidStorageKeys.PLASMA,
                 new FluidBuilder().state(FluidState.PLASMA));
 
-        HastelloyC276.setProperty(CosmicPropertyKeys.HEAT, HeatPipeProperties.of(2300, 1500000, 0.5f));
+        HastelloyC276.setProperty(CosmicPropertyKeys.HEAT, HeatPipeProperties.of(2300, 1500000, 0.05f, 0.01f));
     }
 }

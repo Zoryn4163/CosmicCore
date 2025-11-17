@@ -1,7 +1,10 @@
 package com.ghostipedia.cosmiccore.api.capability.recipe;
 
+import com.ghostipedia.cosmiccore.CosmicUtils;
 import com.ghostipedia.cosmiccore.api.capability.IHeatInfoProvider;
 
+import com.ghostipedia.cosmiccore.api.registries.CosmicRegistries;
+import com.ghostipedia.cosmiccore.common.data.CosmicThermiaDimensions;
 import net.minecraft.core.Direction;
 
 /**
@@ -126,6 +129,12 @@ public interface IHeatContainer extends IHeatInfoProvider {
         currentEnergy -= fit;
         setCurrentThermalEnergy(currentEnergy);
 
+        //heat (or the absence of it) below absolute zero is voided if it cannot be supported, and we underload
+        if (fit == 0 && currentEnergy < 0 && !supportsImpossibleHeatValues()) {
+            currentEnergy = 0;
+            underload();
+        }
+
         delta = delta - currentEnergy;
 
         if (fit == 0 && getHeatCanBeUnderloaded() && currentEnergy < getUnderloadThreshold()) {
@@ -212,6 +221,25 @@ public interface IHeatContainer extends IHeatInfoProvider {
      */
     default long getAcceptLimit() {
         return getMaximumThermalEnergy() / 10;
+    }
+
+    /**
+     * This method does NOT set the {@code currentThermalEnergy}
+     * @param dimThermia The {@link com.ghostipedia.cosmiccore.common.data.CosmicThermiaDimensions.DimThermiaRecord}
+     * from {@code CosmicRegistries.DIM_THERMIA}
+     * @param ticksPassed Number of ticks passed since last call. The thermal interpolation will occur a
+     *                    number of times equal to the amount of ticks that have passed.
+     * @return The resulting thermalEnergy from ambient modification.
+     */
+    default long iterateThermalEnergyTowardsEnvironment(CosmicThermiaDimensions.DimThermiaRecord dimThermia, int ticksPassed) {
+        var thermalEnergy = getCurrentThermalEnergy();
+        for (int i = 0; i < ticksPassed; i++) {
+            //thermalEnergy -= (long)(Math.pow(Math.abs(thermalEnergy), 0.3) * environmentalFactor * Math.signum(thermalEnergy));
+
+            thermalEnergy = (long) CosmicUtils.DoubleLerp(thermalEnergy, dimThermia.ambientThermia(), dimThermia.ambientConductance() * getConductanceRateEnvironment());
+
+        }
+        return thermalEnergy;
     }
 
     // I'm not sure what the purpose of this was supposed to be

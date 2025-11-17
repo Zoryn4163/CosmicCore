@@ -4,10 +4,13 @@ import com.ghostipedia.cosmiccore.CosmicUtils;
 import com.ghostipedia.cosmiccore.api.capability.CosmicCapabilities;
 import com.ghostipedia.cosmiccore.api.capability.recipe.IHeatContainer;
 import com.ghostipedia.cosmiccore.api.pipe.HeatPipeProperties;
+import com.ghostipedia.cosmiccore.api.registries.CosmicRegistries;
+import com.ghostipedia.cosmiccore.common.data.CosmicThermiaDimensions;
 import com.ghostipedia.cosmiccore.common.pipelike.heat.HeatPipeNet;
 import com.ghostipedia.cosmiccore.common.pipelike.heat.HeatPipeNetHandler;
 import com.ghostipedia.cosmiccore.common.pipelike.heat.HeatPipeType;
 import com.ghostipedia.cosmiccore.common.pipelike.heat.LevelHeatPipeNet;
+import com.gregtechceu.gtceu.api.GTValues;
 import com.gregtechceu.gtceu.api.blockentity.PipeBlockEntity;
 import com.gregtechceu.gtceu.api.machine.TickableSubscription;
 import com.gregtechceu.gtceu.api.machine.feature.IDataInfoProvider;
@@ -34,6 +37,12 @@ import java.util.EnumMap;
 import java.util.List;
 
 public class HeatPipeBlockEntity extends PipeBlockEntity<HeatPipeType, HeatPipeProperties> implements IDataInfoProvider {
+
+    public static final int FREQUENCY = 5;
+    //it would take 1242 days of uptime for this to overflow
+    private int timer = 0;
+    private int lastExec = 0;
+    private final int offset = GTValues.RNG.nextInt(20);
 
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(HeatPipeBlockEntity.class, PipeBlockEntity.MANAGED_FIELD_HOLDER);
 
@@ -115,25 +124,17 @@ public class HeatPipeBlockEntity extends PipeBlockEntity<HeatPipeType, HeatPipeP
     public HeatPipeNetHandler getHeatContainer() {
         if (heatContainer == null) {
             heatContainer = new HeatPipeNetHandler(this, this.getNodeData());
+            heatContainer.setCurrentThermalEnergy((long)(heatContainer.getBaseTemperature() * (1 + Math.random())));
         }
         return heatContainer;
     }
 
-    //todo; make map of temps and dims
-    public long getEnvironmentalTemperature() {
-        return (23 + 273) * 1000; //Celsius to millikelvin (THIS IS FOR REFERENCE, PERFORM ACTUAL MAPS)
-    }
-
-    public long iterateThermalEnergyTowardsEnvironment(long thermalEnergy, int ticksPassed) {
-        var envRate = heatContainer.getConductanceRateEnvironment();
-        var envTemp = getEnvironmentalTemperature();
-        for (int i = 0; i < ticksPassed; i++) {
-            //thermalEnergy -= (long)(Math.pow(Math.abs(thermalEnergy), 0.3) * environmentalFactor * Math.signum(thermalEnergy));
-
-            thermalEnergy = (long) CosmicUtils.DoubleLerp(thermalEnergy, envTemp, envRate);
-
-        }
-        return thermalEnergy;
+    public CosmicThermiaDimensions.DimThermiaRecord getEnvironmentalThermia() {
+        var dimName = level.dimension().location();
+        if (CosmicRegistries.DIM_THERMIA.containKey(dimName))
+            return CosmicRegistries.DIM_THERMIA.get(dimName);
+        else
+            return CosmicThermiaDimensions.OVERWORLD;
     }
 
     public void removeNeighborCache(Direction direction) {
@@ -142,48 +143,59 @@ public class HeatPipeBlockEntity extends PipeBlockEntity<HeatPipeType, HeatPipeP
 
     public void update() {
         if (level.isClientSide) return;
-        for (Direction direction : Direction.values()) {
-            if (isConnected(direction)) {
-                if (!neighbors.containsKey(direction)) {
-                    BlockEntity neighbor = level.getBlockEntity(getBlockPos().relative(direction));
-                    if (neighbor == null) {
-                        neighbors.put(direction, null);
-                        continue;
+        timer++;
+        if (getOffsetTimer() % FREQUENCY == 0) {
+            //ensure we have a valid heatContainer
+            getHeatContainer();
+
+            heatContainer.setLastThermalEnergy(heatContainer.getCurrentThermalEnergy());
+
+            for (Direction direction : Direction.values()) {
+                if (isConnected(direction)) {
+                    if (!neighbors.containsKey(direction)) {
+                        BlockEntity neighbor = level.getBlockEntity(getBlockPos().relative(direction));
+                        if (neighbor == null) {
+                            neighbors.put(direction, null);
+                            continue;
+                        }
+                        LazyOptional<IHeatContainer> opt = neighbor.getCapability(CosmicCapabilities.CAPABILITY_HEAT_CONTAINER);
+                        if (!opt.isPresent()) {
+                            neighbors.put(direction, null);
+                            continue;
+                        }
+                        neighbors.put(direction, opt.orElse(null));
                     }
-                    LazyOptional<IHeatContainer> opt = neighbor.getCapability(CosmicCapabilities.CAPABILITY_HEAT_CONTAINER);
-                    if (!opt.isPresent()) {
-                        neighbors.put(direction, null);
-                        continue;
-                    }
-                    neighbors.put(direction, opt.orElse(null));
+                    IHeatContainer neighbor = neighbors.get(direction);
+                    if (neighbor == null) continue;
+                    long selfTemp = heatContainer.getCurrentThermalEnergy();
+                    long neighborTemp = neighbor.getCurrentThermalEnergy();
+                    if (neighborTemp > selfTemp) continue;
+                    //long transfer = (long)((selfTemp - neighborTemp) * harmonicMean(neighbor.getConductanceRate(), getHeatContainer().getConductanceRate()));
+                    long selfTargetTemp = (long)CosmicUtils.DoubleLerp(selfTemp, neighborTemp, (heatContainer.getConductanceRate() + neighbor.getConductanceRate()) / 2f);
+                    long transferOut = selfTemp - selfTargetTemp; //this should always be positive since we are only sending thermia to colder pipes
+                    long selfLoss = neighbor.acceptHeatFromNetwork(direction, transferOut);
+                    heatContainer.changeHeat(selfLoss);
                 }
-                IHeatContainer neighbor = neighbors.get(direction);
-                if (neighbor == null) continue;
-                long selfTemp = getHeatContainer().getCurrentThermalEnergy();
-                long neighborTemp = neighbor.getCurrentThermalEnergy();
-                if (neighborTemp >= selfTemp) continue;
-                //long transfer = (long)((selfTemp - neighborTemp) * harmonicMean(neighbor.getConductanceRate(), getHeatContainer().getConductanceRate()));
-                long transfer = (long)CosmicUtils.DoubleLerp(selfTemp, neighborTemp, (getHeatContainer().getConductanceRate() + neighbor.getConductanceRate()) / 2f);
-                transfer = neighbor.acceptHeatFromNetwork(direction, transfer);
-                getHeatContainer().changeHeat(-transfer);
             }
-        }
-        double current = getHeatContainer().getCurrentThermalEnergy();
-        double max = getHeatContainer().getOverloadThreshold();
-        if (current > max) {
-            checkOverload(current, max);
+
+            double current = heatContainer.getCurrentThermalEnergy();
+            double max = heatContainer.getOverloadThreshold();
+            if (current > max) {
+                checkOverload(current, max);
+            }
+
+            //equalize with ambient
+            heatContainer.iterateThermalEnergyTowardsEnvironment(getEnvironmentalThermia(), lastExec - timer);
+
+            lastExec = timer;
         }
     }
 
     protected void checkOverload(double currentTemp, double tempLimit) {
         if (currentTemp * 1.2 > tempLimit) {
             //level.setBlock(getBlockPos(), Blocks.AIR.defaultBlockState(), 3);
-            this.heatContainer.overload();
+            this.getHeatContainer().overload();
         }
-    }
-
-    private float harmonicMean(float a, float b) {
-        return 1 / (1 / a + 1 / b);
     }
 
     @Override

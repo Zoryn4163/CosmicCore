@@ -7,6 +7,7 @@ import com.ghostipedia.cosmiccore.api.pattern.CosmicPredicates;
 import com.ghostipedia.cosmiccore.api.recipe.lookup.MapEmberIngredient;
 import com.ghostipedia.cosmiccore.api.recipe.lookup.MapSoulIngredient;
 import com.ghostipedia.cosmiccore.api.registries.CosmicRegistration;
+import com.ghostipedia.cosmiccore.api.registries.CosmicRegistries;
 import com.ghostipedia.cosmiccore.client.CosmicCoreClient;
 import com.ghostipedia.cosmiccore.common.data.*;
 import com.ghostipedia.cosmiccore.common.data.materials.CosmicMaterialSet;
@@ -77,6 +78,7 @@ public class CosmicCore {
     public static void init() {
         ConfigHolder.init();
         CosmicCreativeModeTabs.init();
+        CosmicRegistries.init();
         CosmicBlocks.init();
         CosmicBlockEntities.init();
         CosmicItems.init();
@@ -85,6 +87,7 @@ public class CosmicCore {
         CosmicCoreDatagen.init();
         CosmicPredicates.init();
         CosmicMaterialSet.init();
+        CosmicThermiaDimensions.init();
     }
 
     public static ResourceLocation id(String path) {
