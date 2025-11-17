@@ -5,14 +5,20 @@ import com.ghostipedia.cosmiccore.api.pipe.HeatPipeProperties;
 import com.ghostipedia.cosmiccore.common.blockentity.pipelike.HeatPipeBlockEntity;
 import com.ghostipedia.cosmiccore.common.data.CosmicBlockEntities;
 import com.ghostipedia.cosmiccore.common.data.CosmicHeatPipe;
+import com.ghostipedia.cosmiccore.common.pipelike.heat.HeatPipeNetHandler;
 import com.ghostipedia.cosmiccore.common.pipelike.heat.HeatPipeType;
 import com.ghostipedia.cosmiccore.common.pipelike.heat.LevelHeatPipeNet;
+import com.gregtechceu.gtceu.GTCEu;
 import com.gregtechceu.gtceu.api.block.MaterialPipeBlock;
 import com.gregtechceu.gtceu.api.blockentity.PipeBlockEntity;
 import com.gregtechceu.gtceu.api.data.chemical.material.Material;
+import com.gregtechceu.gtceu.api.data.tag.TagPrefix;
 import com.gregtechceu.gtceu.api.pipenet.IPipeNode;
 import com.gregtechceu.gtceu.client.model.PipeModel;
 import com.gregtechceu.gtceu.client.renderer.block.PipeBlockRenderer;
+import com.gregtechceu.gtceu.common.blockentity.FluidPipeBlockEntity;
+import com.gregtechceu.gtceu.common.data.GTMaterialBlocks;
+import com.gregtechceu.gtceu.utils.EntityDamageUtil;
 import com.gregtechceu.gtceu.utils.GTUtil;
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
@@ -20,6 +26,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -31,6 +38,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.fluids.FluidStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -95,14 +103,30 @@ public class HeatPipeBlock extends MaterialPipeBlock<HeatPipeType, HeatPipePrope
 
     @Override
     public void entityInside(BlockState state, Level level, BlockPos pos, Entity entity) {
-        if(level.isClientSide) return;
-        var me = level.getBlockEntity(pos);
-        if(me instanceof HeatPipeBlockEntity heatBlockPipe) {
-            if (entity instanceof Player player) {
-                player.displayClientMessage(heatBlockPipe.getDataInfo(null).get(0), false);
+        // don't apply damage if there is a frame box
+        var pipeNode = getPipeTile(level, pos);
+        if (pipeNode == null) {
+            GTCEu.LOGGER.error("Pipe was null");
+            return;
+        }
+        if (!pipeNode.getFrameMaterial().isNull()) {
+            BlockState frameState = GTMaterialBlocks.MATERIAL_BLOCKS.get(TagPrefix.frameGt, pipeNode.getFrameMaterial())
+                    .getDefaultState();
+            frameState.getBlock().entityInside(frameState, level, pos, entity);
+            return;
+        }
+        if (level.isClientSide) return;
+        if (level.getBlockEntity(pos) == null) return;
+        HeatPipeBlockEntity pipe = (HeatPipeBlockEntity) level.getBlockEntity(pos);
+        HeatPipeNetHandler heatContainer = pipe.getHeatContainer();
+        if (heatContainer == null) return;
+
+        if (pipe.getOffsetTimer() % 10 == 0) {
+            if (entity instanceof LivingEntity livingEntity) {
+                EntityDamageUtil.applyTemperatureDamage(livingEntity,
+                        (int)(heatContainer.getCurrentThermalEnergy() / 1000), 1.0F, 20);
             }
         }
-
         super.entityInside(state, level, pos, entity);
     }
 
